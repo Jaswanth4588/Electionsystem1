@@ -1,0 +1,148 @@
+package Election;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.util.*;
+
+class Contestant {
+    String name;
+    int points;
+
+    public Contestant(String name) {
+        this.name = name;
+        this.points = 0;
+    }
+}
+
+class Region {
+    String name;
+    List<Contestant> contestants;
+    Map<String, Integer> voterRegionMap;
+    List<Set<String>> invalidVotes;
+    Map<String, Integer> candidatePoints;
+
+    public Region(String name, List<Contestant> contestants) {
+        this.name = name;
+        this.contestants = contestants;
+        this.voterRegionMap = new HashMap<>();
+        this.invalidVotes = new ArrayList<>();
+        this.candidatePoints = new HashMap<>();
+        for (Contestant contestant : contestants) {
+            this.candidatePoints.put(contestant.name, 0);
+        }
+    }
+}
+
+public class ElectionSystem {
+    Map<String, Region> regions;
+    Contestant chiefOfficer;
+
+    public ElectionSystem() {
+        this.regions = new HashMap<>();
+        this.chiefOfficer = null;
+    }
+
+    public void readDataFromFile(String fileName) {
+        try {
+            Scanner scanner = new Scanner(new File(fileName));
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+                if (line.equals("&&")) {
+                    break;
+                }
+                if (!line.startsWith("//") && line.contains("/")) {
+                    String[] parts = line.split("/");
+                    String regionName = parts[0];
+                    List<Contestant> contestants = new ArrayList<>();
+                    for (char c : parts[1].toCharArray()) {
+                        contestants.add(new Contestant(String.valueOf(c)));
+                    }
+                    Region region = new Region(regionName, contestants);
+                    regions.put(regionName, region);
+                } else if (line.startsWith("//")) {
+                    String regionName = scanner.nextLine();
+                    Region region = regions.get(regionName);
+                    while (scanner.hasNextLine()) {
+                        line = scanner.nextLine();
+                        if (line.equals("&&")) {
+                            break;
+                        } else if(line.startsWith("//")) {
+                        	regionName = scanner.nextLine();
+                            region = regions.get(regionName);
+                        	continue;
+                        } else {
+                            String[] parts = line.split(" ");
+                            String voterId = parts[0];
+                            String preferences = parts[1]; //Arrays.asList(parts).subList(1, parts.length);
+                            processVote(region, voterId, preferences);
+                        }
+                    }
+                }
+            }
+            scanner.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    
+    private void processVote(Region region, String voterId, String voteString) {
+        if (!region.voterRegionMap.containsKey(voterId)) {
+            Set<String> invalidVote = new HashSet<>();
+            boolean validVote = true;
+            //System.out.println(voteString.length());
+            if (voteString.length() != 3) {
+                validVote = false;
+            } else {
+                for (int i = 0; i < 3; i++) {
+                    String preference = String.valueOf(voteString.charAt(i));
+                    if (!region.contestants.stream().anyMatch(c -> c.name.equals(preference))) {
+                        validVote = false;
+                        invalidVote.add(preference);
+                    }
+                }
+            }
+            if (validVote) {
+                for (int i = 0; i < 3; i++) {
+                    String preference = String.valueOf(voteString.charAt(i));
+                    Contestant contestant = region.contestants.stream().filter(c -> c.name.equals(preference)).findFirst().orElse(null);
+                    if (contestant != null) {
+                        contestant.points += (3 - i); // Adjusted points calculation
+                    }
+                }
+                region.voterRegionMap.put(voterId, 1);
+            } else {
+                region.invalidVotes.add(invalidVote);
+            }
+        }
+    }
+
+
+    public void countVotes() {
+        for (Region region : regions.values()) {
+            for (Contestant contestant : region.contestants) {
+                region.candidatePoints.put(contestant.name, contestant.points);
+            }
+            Optional<Map.Entry<String, Integer>> maxEntry1 = region.candidatePoints.entrySet().stream().max(Comparator.comparing(Map.Entry::getValue));
+            maxEntry1.ifPresent(entry -> {
+                Contestant regionalHead = region.contestants.stream().filter(c -> c.name.equals(entry.getKey())).findFirst().orElse(null);
+                if (regionalHead != null) {
+                    System.out.println("Region: " + region.name + ", Invalid Votes: " + region.invalidVotes.size() + ", Regional Head: " + regionalHead.name + ", Points: " + entry.getValue());
+                }
+            });
+        }
+        
+        Optional<Map.Entry<String, Integer>> maxEntry = regions.values().stream().flatMap(r -> r.candidatePoints.entrySet().stream()).max(Comparator.comparing(Map.Entry::getValue));
+        maxEntry.ifPresent(entry -> {
+            chiefOfficer = new Contestant(entry.getKey());
+            chiefOfficer.points = entry.getValue();
+            System.out.println("Chief Officer: " + chiefOfficer.name + ", Points: " + entry.getValue());
+        });
+    }
+
+    public static void main(String[] args) {
+    	ElectionSystem electionSystem = new ElectionSystem();
+        electionSystem.readDataFromFile("C:\\Users\\jaswa\\Downloads\\voting.dat");
+        electionSystem.countVotes();
+    }
+}
