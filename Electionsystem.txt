@@ -145,4 +145,4 @@ public class ElectionSystem {
         electionSystem.readDataFromFile("C:\\Users\\jaswa\\Downloads\\voting.dat");
         electionSystem.countVotes();
     }
-
+}
